@@ -29,13 +29,17 @@ namespace IdleMaster
       // Remove any existing session state data
       InternetSetOption(0, 42, null, 0);
 
+      // Localize form
+      this.Text = localization.strings.please_login;
+      lblSaving.Text = localization.strings.saving_info;
+
       // Delete Steam cookie data from the browser control
       InternetSetCookie("http://steamcommunity.com", "sessionid", ";expires=Mon, 01 Jan 0001 00:00:00 GMT");
       InternetSetCookie("http://steamcommunity.com", "steamLogin", ";expires=Mon, 01 Jan 0001 00:00:00 GMT");
       InternetSetCookie("http://steamcommunity.com", "steamRememberLogin", ";expires=Mon, 01 Jan 0001 00:00:00 GMT");
 
       // When the form is loaded, navigate to the Steam login page using the web browser control
-      wbAuth.Navigate("https://steamcommunity.com/login/home/?goto=my/profile");
+      wbAuth.Navigate("https://steamcommunity.com/login/home/?goto=my/profile", "_self", null, "User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; rv:11.0) like Gecko");
     }
 
     // This code block executes each time a new document is loaded into the web browser control
@@ -46,24 +50,56 @@ namespace IdleMaster
       dynamic globalHeader = htmldoc.GetElementById("global_header");
       if (globalHeader != null)
       {
-        globalHeader.parentNode.removeChild(globalHeader);
+          try
+          {
+              globalHeader.parentNode.removeChild(globalHeader);
+          }
+          catch (Exception)
+          {
+
+          }
+          
       }
 
       // Get the URL of the page that just finished loading
       var url = wbAuth.Url.AbsoluteUri;
 
+      // If the page it just finished loading is the login page
+      if (url == "https://steamcommunity.com/login/home/?goto=my/profile" ||
+          url == "https://store.steampowered.com/login/transfer" ||
+          url == "https://store.steampowered.com//login/transfer")
+      {
+          // Get a list of cookies from the current page
+          CookieContainer container = GetUriCookieContainer(wbAuth.Url);
+          var cookies = container.GetCookies(wbAuth.Url);
+          foreach (Cookie cookie in cookies)
+          {
+              if (cookie.Name.StartsWith("steamMachineAuth"))
+                  Settings.Default.steamMachineAuth = cookie.Value;
+          }
+      }
       // If the page it just finished loading isn't the login page
-      if (url != "https://steamcommunity.com/login/home/?goto=my/profile" && url != "https://store.steampowered.com//login/transfer" && url.StartsWith("javascript:") == false && url.StartsWith("about:") == false)
+      else if (url.StartsWith("javascript:") == false && url.StartsWith("about:") == false)
       {
 
-        dynamic parentalNotice = htmldoc.GetElementById("parental_notice");
-        if (parentalNotice != null)
+        try
         {
-          // Steam family options enabled
-          wbAuth.Show();
-          Width = 1000;
-          Height = 350;
-          return;
+            dynamic parentalNotice = htmldoc.GetElementById("parental_notice");
+            if (parentalNotice != null)
+            {
+                if (parentalNotice.OuterHtml != "") 
+                {
+                    // Steam family options enabled
+                    wbAuth.Show();
+                    Width = 1000;
+                    Height = 350;
+                    return;
+                }
+            }
+        }
+        catch (Exception)
+        {
+        
         }
 
         // Get a list of cookies from the current page
@@ -90,6 +126,11 @@ namespace IdleMaster
           else if (cookie.Name == "steamparental")
           {
             Settings.Default.steamparental = cookie.Value;
+          }
+
+          else if (cookie.Name == "steamRememberLogin")
+          {
+              Settings.Default.steamRememberLogin = cookie.Value;
           }
         }
 
@@ -157,7 +198,7 @@ namespace IdleMaster
       var url = e.Url.AbsoluteUri;
 
       // Check to see if the page it's navigating to isn't the Steam login page or related calls
-      if (url != "https://steamcommunity.com/login/home/?goto=my/profile" && url != "https://store.steampowered.com//login/transfer" && url.StartsWith("javascript:") == false && url.StartsWith("about:") == false)
+      if (url != "https://steamcommunity.com/login/home/?goto=my/profile" && url != "https://store.steampowered.com/login/transfer" && url != "https://store.steampowered.com//login/transfer" && url.StartsWith("javascript:") == false && url.StartsWith("about:") == false)
       {
         // start the sanity check timer
         tmrCheck.Enabled = true;
